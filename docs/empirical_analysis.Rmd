@@ -1,0 +1,1094 @@
+---
+title: "Section: Empirical analysis"
+output: html_notebook
+---
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readxl)
+library(lubridate)
+library(urca)
+library(tseries)
+library(seasonal)
+library(lmtest)
+library(vars)
+library(forecast)
+library(graphics)
+library(Hmisc)
+library(xtable)
+library(stargazer)
+
+# Theming
+
+theme_set(
+  theme_bw(base_size = 10) +
+    theme(
+      plot.title = element_text(size = 14,
+                                margin = margin(0, 0, 4, 0, "pt")),
+      plot.subtitle = element_text(size = 8),
+      plot.caption = element_text(size = 6),
+      panel.border = element_blank()
+    )
+)
+
+rm(list=ls())
+
+col <- rcartocolor::carto_pal(12, "Bold")
+source("func/helper_functions.R")
+
+# Load Data
+sales <- read_excel("../data/sales.xls")
+ads <- read_excel("../data/ads.xls")
+adprice <- read_excel("../data/adprice.xls")
+
+#combine the dataframes
+df <- sales %>%
+  dplyr::select(-Status) %>%
+  left_join(., ads %>%
+              dplyr::select(- Status), 
+            by = c("Titel","Heft Nr.")) %>%
+  left_join(., adprice %>%
+              dplyr::select(-Status),
+            by = c("Titel","Heft Nr.")) %>%
+  mutate(year = as.numeric(substrRight(`Heft Nr.`, 4)),
+         issue = as.numeric(substr(`Heft Nr.`,1,2)))
+```
+
+```{r}
+ggplot(df, aes(Gattung)) +
+  geom_bar(fill = col[2], alpha = 0.8) +
+  coord_flip()
+```
+
+```{r}
+df %>%
+  filter(Gattung == "Aktuelle Zeitschriften und Magazine") %>%
+  ggplot(aes(Titel)) +
+  geom_bar(fill = col[3], alpha = 0.8) +
+  coord_flip()
+```
+
+We use the cross correlation function (CCF) to estimate the relationship between two time series ($y_t$ and $x_t$). However, one difficulty is that the CCF is affected by the time series structure of the x-variable and any “in common” trends the $x$ and $y$ series may have over time.
+
+One strategy for dealing with this difficulty is called “pre-whitening.”  The steps are:
+
+  1) Determine a time series model for the x-variable and store the residuals from this model.
+
+  2) Filter the y-variable series using the x-variable model (using the estimated coefficients from step 1). In this step we find differences between observed y-values and “estimated” y-values based on the x-variable model.
+
+  3) Examine the CCF between the residuals from Step 1 and the filtered y-values from Step 2.  This CCF can be used to identify the possible terms for a lagged regression.
+  
+This strategy stems from the fact that when the input series (say, wt) is “white noise” the patterns of the CCF between wt and zt, a linear combination of lags of the wt, are easily identifiable (and easily derived).  Step 1 above creates a “white noise” series as the input.  Conceptually, Step 2 above arises from a starting point that y-series = linear combination of x-series.  If we “transform” the x-series to white noise (residuals from its ARIMA model) then we should apply the transformation to both sides of the equation to preserve an equality of sorts.
+
+# 1. FOCUS, Der Spiegel, Stern
+
+```{r}
+keep <- c("FOCUS","Der Spiegel","Stern")
+
+fss <- df %>%
+  filter(Titel %in% keep) %>%
+  mutate(date = calculate_week(issue, year))
+```
+
+```{r}
+ggplot(fss, aes(date, `Verkauf Gesamt`/1000,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  labs(x="", color="", title = NULL, y="Sales in tsd.") +
+  scale_x_date(date_breaks = "years" , date_labels = "%Y") +
+  geom_vline(xintercept = as.numeric(as.Date("2004-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2006-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2013-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2015-08-18")), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+  
+
+ggsave('../figs/sales_fss.png', width = 8, height = 6)
+```
+
+```{r}
+ggplot(fss, aes(date, `Anzeigen Gesamt`,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  labs(x="", color="", title = NULL, y="Total advertising pages") +
+  scale_x_date(date_breaks = "years" , date_labels = "%Y") +
+  geom_vline(xintercept = as.numeric(as.Date("2004-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2006-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2013-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2015-08-18")), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+
+ggsave('../figs/ads_fss.png', width = 8, height = 6)
+```
+
+## FSS - Sample 1
+```{r}
+# time period 1
+min <- calculate_week(33, 2004)
+max <- calculate_week(33, 2006)
+```
+
+### Sales
+```{r fss_sales1: Create df}
+fss %>%
+  dplyr::select(`Verkauf Gesamt`, date, Titel) %>%
+  spread(Titel, `Verkauf Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r fss_sales1: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r fss_sales1: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_circ_fss1.png", width = 8, height = 6)
+```
+
+```{r fss_sales1: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r fss_sales1: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_fss_sales1 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_fss_sales1 %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-0.7,0.7),
+    breaks = seq(-0.7,0.7,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_sales_fss1.png", width = 8, height = 6)
+```
+
+### Advertising
+```{r fss_ads1: Create df}
+fss %>%
+  dplyr::select(`Anzeigen Gesamt`, date, Titel) %>%
+  spread(Titel, `Anzeigen Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r fss_ads1: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r fss_ads1: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_ads_fss1.png", width = 8, height = 6)
+```
+
+```{r fss_ads1: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r fss_ads1: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_fss_ads1 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_fss_ads1 %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-0.7,0.7),
+    breaks = seq(-0.7,0.7,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_ads_fss1.png", width = 8, height = 6)
+```
+
+## FSS - Sample 2
+```{r}
+# time period 2
+min <- calculate_week(33, 2013)
+max <- calculate_week(33, 2015)
+```
+
+### Sales
+```{r fss_sales2: Create df}
+fss %>%
+  dplyr::select(`Verkauf Gesamt`, date, Titel) %>%
+  spread(Titel, `Verkauf Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r fss_sales2: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r fss_sales2: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_circ_fss2.png", width = 8, height = 6)
+```
+
+```{r fss_sales2: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r fss_sales2: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_fss_sales2 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_fss_sales2 %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-0.7,0.7),
+    breaks = seq(-0.7,0.7,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_sales_fss2.png", width = 8, height = 6)
+```
+
+### Advertising
+```{r fss_ads2: Create df}
+fss %>%
+  dplyr::select(`Anzeigen Gesamt`, date, Titel) %>%
+  spread(Titel, `Anzeigen Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r fss_ads2: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r fss_ads2: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_ads_fss2.png", width = 8, height = 6)
+```
+
+```{r fss_ads2: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r fss_ads2: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_fss_ads2 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_fss_ads2 %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-0.7,0.7),
+    breaks = seq(-0.7,0.7,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_ads_fss2.png", width = 8, height = 6)
+```
+
+# 2. TV
+```{r}
+keep <- c("TV Movie", "TV Spielfilm", "TV Today")
+
+min <- calculate_biweek(15, 2007)
+max <- calculate_biweek(15, 2011)
+
+tv <- df %>%
+  filter(Titel %in% keep) %>%
+  mutate(date = calculate_biweek(issue, year))
+```
+
+```{r}
+ggplot(tv, aes(date, `Verkauf Gesamt`/1000,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(values = col[1:3]) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(x="", color="", title = NULL, y="Sales in tsd.") +
+  geom_vline(xintercept = as.numeric(min), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(max), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+  
+
+ggsave('../figs/sales_tv.png', width = 8, height = 6)
+```
+
+```{r}
+ggplot(tv, aes(date, `Anzeigen Gesamt`,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(values = col[1:3]) +
+  labs(x="", color="", title = NULL, y="Total advertising pages") +
+  scale_x_date(date_breaks = "years" , date_labels = "%Y") +
+  geom_vline(xintercept = as.numeric(min), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(max), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+
+ggsave('../figs/ads_tv.png', width = 8, height = 6)
+```
+
+## Sales
+```{r tv_sales: Create df}
+tv %>%
+  dplyr::select(`Verkauf Gesamt`, date, Titel) %>%
+  spread(Titel, `Verkauf Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r tv_sales: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r tv_sales: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_sales_tv.png", width = 8, height = 6)
+```
+
+```{r tv_sales: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r tv_sales: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_tv_sales <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_tv_sales %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-1,1),
+    breaks = seq(-1,1,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_sales_tv.png", width = 8, height = 6)
+```
+
+## Advertising
+```{r tv_ads: Create df}
+tv %>%
+  dplyr::select(`Anzeigen Gesamt`, date, Titel) %>%
+  spread(Titel, `Anzeigen Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r tv_ads: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r tv_ads: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_ads_tv.png", width = 8, height = 6)
+```
+
+```{r tv_ads: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r tv_ads: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_tv_ads <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_tv_ads %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-1,1),
+    breaks = seq(-1,1,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_ads_tv.png", width = 8, height = 6)
+```
+
+# 3. Women
+```{r}
+keep <- c("Brigitte", "freundin", "FÜR SIE")
+
+min <- calculate_biweek(15, 2007)
+max <- calculate_biweek(15, 2011)
+
+women <- df %>%
+  filter(Titel %in% keep) %>%
+  mutate(date = calculate_biweek(issue, year))
+```
+
+```{r}
+ggplot(women, aes(date, `Verkauf Gesamt`/1000,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(values = col[1:3]) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  labs(x="", color="", title = NULL, y="Sales in tsd.") +
+  geom_vline(xintercept = as.numeric(min), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(max), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+  
+
+ggsave('../figs/sales_women.png', width = 8, height = 6)
+```
+
+```{r}
+ggplot(women, aes(date, `Anzeigen Gesamt`,
+                color=Titel)) +
+  geom_line() +
+  scale_color_manual(values = col[1:3]) +
+  labs(x="", color="", title = NULL, y="Total advertising pages") +
+  scale_x_date(date_breaks = "years" , date_labels = "%Y") +
+  geom_vline(xintercept = as.numeric(min), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(max), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+
+ggsave('../figs/ads_women.png', width = 8, height = 6)
+```
+
+## Sales
+```{r women_sales: Create df}
+women %>%
+  dplyr::select(`Verkauf Gesamt`, date, Titel) %>%
+  spread(Titel, `Verkauf Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r women_sales: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r women_sales: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_sales_women.png", width = 8, height = 6)
+```
+
+```{r women_sales: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r women_sales: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_women_sales <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_women_sales %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-0.8,0.8),
+    breaks = seq(-0.8,0.8,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_sales_women.png", width = 8, height = 6)
+```
+
+## Advertising
+```{r women_ads: Create df}
+women %>%
+  dplyr::select(`Anzeigen Gesamt`, date, Titel) %>%
+  spread(Titel, `Anzeigen Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r women_ads: Calculate Arima}
+results <- list()
+mag <- names(tempdf)
+x <- 1
+
+for (i in mag) {
+    selected <- tempdf[, -which(names(tempdf) == i)]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[x]] <- temp
+    x <- x+1
+  }
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r women_ads: Plot residuals}
+autoplot(resid) +
+  scale_color_manual(labels = mag, values = col[1:3]) +
+  geom_hline(yintercept = 0, color = "grey50") +
+  labs(y="residuals", x="", color = "",
+       caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/arima_ads_women.png", width = 8, height = 6)
+```
+
+```{r women_ads: Calculate CCF}
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- mag
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r women_ads: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+# convert dataframe to long format
+corrLong_women_ads <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+
+corrLong_women_ads %>%
+  filter(Var1!=Var2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-1,1),
+    breaks = seq(-1,1,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_ads_women.png", width = 8, height = 6)
+```
