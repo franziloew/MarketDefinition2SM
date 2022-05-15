@@ -100,14 +100,22 @@ ggplot(fss, aes(date, `Verkauf Gesamt`/1000,
   theme(legend.position="bottom")
   
 
-ggsave('../figs_new/sales_fss.png')
+ggsave('../figs/sales_fss.png', width = 8, height = 6)
 ```
 
 ```{r}
 ggplot(fss, aes(date, `Anzeigen Gesamt`,
                 color=Titel)) +
   geom_line() +
-  labs(x="", color="", title = "Anzeigen Gesamt")
+  labs(x="", color="", title = NULL, y="Total advertising pages") +
+  scale_x_date(date_breaks = "years" , date_labels = "%Y") +
+  geom_vline(xintercept = as.numeric(as.Date("2004-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2006-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2013-08-18")), linetype = "dashed", lwd=.5) +
+  geom_vline(xintercept = as.numeric(as.Date("2015-08-18")), linetype = "dashed", lwd=.5) +
+  theme(legend.position="bottom")
+
+ggsave('../figs/ads_fss.png', width = 8, height = 6)
 ```
 
 # CCF
