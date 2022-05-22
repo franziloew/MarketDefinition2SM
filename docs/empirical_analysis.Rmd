@@ -85,7 +85,7 @@ This strategy stems from the fact that when the input series (say, wt) is “whi
 # 1. FOCUS, Der Spiegel, Stern
 
 ```{r}
-keep <- c("FOCUS","Der Spiegel","Stern")
+keep <- c("Der Spiegel","FOCUS","Stern")
 
 fss <- df %>%
   filter(Titel %in% keep) %>%
@@ -96,7 +96,7 @@ fss <- df %>%
 ggplot(fss, aes(date, `Verkauf Gesamt`/1000,
                 color=Titel)) +
   geom_line() +
-  scale_color_manual(labels = mag, values = col[1:3]) +
+  scale_color_manual(values = col[1:3]) +
   labs(x="", color="", title = NULL, y="Sales in tsd.") +
   scale_x_date(date_breaks = "years" , date_labels = "%Y") +
   geom_vline(xintercept = as.numeric(as.Date("2004-08-18")), linetype = "dashed", lwd=.5) +
@@ -113,7 +113,7 @@ ggsave('../figs/sales_fss.png', width = 8, height = 6)
 ggplot(fss, aes(date, `Anzeigen Gesamt`,
                 color=Titel)) +
   geom_line() +
-  scale_color_manual(labels = mag, values = col[1:3]) +
+  scale_color_manual(values = col[1:3]) +
   labs(x="", color="", title = NULL, y="Total advertising pages") +
   scale_x_date(date_breaks = "years" , date_labels = "%Y") +
   geom_vline(xintercept = as.numeric(as.Date("2004-08-18")), linetype = "dashed", lwd=.5) +
@@ -204,15 +204,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r fss_sales1: CCF long df}
+# convert dataframe to long format
+corrLong_fss_sales1 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "sales",
+         sample = "news magazines (1)")
+```
+
 ```{r fss_sales1: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_fss_sales1 <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_fss_sales1 %>%
   filter(Var1!=Var2) %>%
@@ -313,15 +317,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r fss_ads1: CCF long df}
+# convert dataframe to long format
+corrLong_fss_ads1 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "ads",
+         sample = "news magazines (1)")
+```
+
 ```{r fss_ads1: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_fss_ads1 <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_fss_ads1 %>%
   filter(Var1!=Var2) %>%
@@ -429,15 +437,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r fss_sales2: CCF long df}
+# convert dataframe to long format
+corrLong_fss_sales2 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "sales",
+         sample = "news magazines (2)")
+```
+
 ```{r fss_sales2: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_fss_sales2 <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_fss_sales2 %>%
   filter(Var1!=Var2) %>%
@@ -538,15 +550,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r fss_ads2: CCF long df}
+# convert dataframe to long format
+corrLong_fss_ads2 <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "ads",
+         sample = "news magazines (2)")
+```
+
 ```{r fss_ads2: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_fss_ads2 <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_fss_ads2 %>%
   filter(Var1!=Var2) %>%
@@ -688,15 +704,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r ty_sales; CCF long df}
+# convert dataframe to long format
+corrLong_tv_sales <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "sales",
+         sample = "program guides")
+```
+
 ```{r tv_sales: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_tv_sales <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_tv_sales %>%
   filter(Var1!=Var2) %>%
@@ -797,15 +817,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r tv_ads: CCF long df}
+# convert dataframe to long format
+corrLong_tv_ads <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "ads",
+         sample = "program guides")
+```
+
 ```{r tv_ads: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_tv_ads <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_tv_ads %>%
   filter(Var1!=Var2) %>%
@@ -947,15 +971,20 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r women_sales: CCF long df}
+# convert dataframe to long format
+corrLong_women_sales <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "sales",
+         sample = "women's magazines")
+```
+
+
 ```{r women_sales: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_women_sales <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_women_sales %>%
   filter(Var1!=Var2) %>%
@@ -1056,15 +1085,19 @@ for (corr1Id in 1:ncol(corr_temp)) {
 }
 ```
 
+```{r women_ads: CCF long df}
+# convert dataframe to long format
+corrLong_women_ads <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag),
+         type = "ads",
+         sample = "women's magazines")
+```
+
 ```{r women_ads: Plot CCF}
 # Calculate confidence intervals
 ci_upper <- 2/sqrt(length(resid[,1]))
 ci_lower <- -2/sqrt(length(resid[,1]))
-
-# convert dataframe to long format
-corrLong_women_ads <- corr %>%
-    gather(lag, ccf, `-3`:`3`) %>%
-  mutate(lag = as.numeric(lag))
 
 corrLong_women_ads %>%
   filter(Var1!=Var2) %>%
@@ -1091,4 +1124,142 @@ corrLong_women_ads %>%
   theme(legend.position = "bottom")
 
 ggsave("../figs/ccf_ads_women.png", width = 8, height = 6)
+```
+
+# 4. Combine all
+
+```{r combine dfs}
+corrLong_all <- rbind(corrLong_fss_sales1, corrLong_fss_sales2,
+            corrLong_fss_ads1, corrLong_fss_ads2,
+            corrLong_tv_sales, corrLong_tv_ads,
+            corrLong_women_ads, corrLong_women_sales)
+```
+
+```{r}
+df_wide <- df_combined %>% 
+  filter(lag == 0) %>% 
+  filter(Var1 != Var2) %>% 
+  distinct(ccf, .keep_all = TRUE) %>%  
+  mutate(magazine_pair = paste(Var1,"&", Var2)) %>% 
+  dplyr::select(magazine_pair, ccf, type, sample) %>% 
+  arrange(magazine_pair) %>% 
+  spread(type, ccf) %>% 
+  arrange(sample)
+```
+
+# TV & Women
+```{r}
+women <- c("Brigitte", "freundin", "FÜR SIE")
+tv <- c("TV Movie", "TV Spielfilm", "TV Today")
+keep <- c(women,tv)
+
+min <- calculate_biweek(15, 2007)
+max <- calculate_biweek(15, 2011)
+
+tv_women <- df %>%
+  filter(Titel %in% keep) %>%
+  mutate(date = calculate_biweek(issue, year))
+```
+
+## Sales
+```{r tv_women_sales: Create df}
+tv_women %>%
+  dplyr::select(`Verkauf Gesamt`, date, Titel) %>%
+  spread(Titel, `Verkauf Gesamt`) %>%
+  filter(date >= as.Date(min)) %>%
+  filter(date <= as.Date(max)) %>%
+  dplyr::select(-date) -> tempdf
+```
+  
+```{r tv_women_sales: Calculate Arima}
+# FIXME: calculcate ARIMA for different constelations
+
+results <- list()
+x <- 1
+
+for (i in women) {
+    selected <- tempdf[, tv]
+    xreg_matrix <- as.matrix(cbind(selected[,1],selected[,2],selected[,3]))
+    temp <- auto.arima(tempdf[,i], xreg = xreg_matrix)
+    
+    results[[i]] <- temp
+    x <- x+1
+}
+
+resid <- cbind(results[[1]]$residuals, results[[2]]$residuals, results[[3]]$residuals)
+```
+
+```{r tv_women_sales: Calculate CCF}
+# FIXME: calculcate ARIMA cross-correlation
+corr_temp <- resid %>% as.data.frame()
+names(corr_temp) <- women
+
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), tv)
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+
+```
+
+```{r tv_women_sales: CCF long df}
+# convert dataframe to long format
+corrLong_tv_women_sales <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>%
+  mutate(lag = as.numeric(lag))
+```
+
+
+```{r tv_women_sales: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid[,1]))
+ci_lower <- -2/sqrt(length(resid[,1]))
+
+corrLong_tv_women_sales %>% 
+  ggplot(aes(lag,ccf,
+             fill=Var2)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var1, ncol=3) +
+  scale_x_continuous(breaks = c(-3:3)) +
+  # scale_y_continuous(
+  #   limits = c(-0.8,0.8),
+  #   breaks = seq(-0.8,0.8,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+#ggsave("../figs/ccf_sales_tv_women.png", width = 8, height = 6)
 ```
