@@ -53,9 +53,9 @@
 
 \section{Introduction}
 
-Market definition in two-sided markets is a complex and current challenge in antitrust analysis. While many recent cases, such as, e.g., EU ./. Google, Bundeskartellamt ./. Facebook and others deal with two-sided platform markets, no quantitative method has been developed yet which is applicable and suitable as a practical tool for market definition. As traditional methods developed for so-called one-sided (or traditional) markets are no longer valid, new methods that account for the interrelation of two-sided markets are typically too complex to be applied to actual cases. The interdependence of quantities and prices from both markets, caused by indirect network effects, leads to severe identification problems and demands data requirements. For this reason, there is an emerging debate on whether or not two-sided markets should be defined at all, and some authors recommend abandoning market definition altogether, as it is considered useless and incoherent \citep{noel_analyzing_2005, kaplow_market_2014}. However, competition authorities typically do not have the choice to abandon market definition completely. They are either obliged by law to properly define relevant markets or have at least to identify the closest competitors to evaluate possible effects of anti-competitive behavior. Because of practical reasons, competition authorities typically do not use quantitative methods but rather qualitative procedures to define two-sided markets.   
+Market definition in two-sided markets is a complex and current challenge in antitrust analysis. While many recent cases, such as, e.g., EU ./. Google, Bundeskartellamt ./. Facebook and others deal with two-sided platform markets, no quantitative method has been developed yet which is applicable and suitable as a practical tool for market definition. As traditional methods developed for so-called one-sided (or traditional) markets are no longer valid, new methods that account for the interrelation of two-sided markets tend to be too complex or too data consuming to be applied to actual cases. The interdependence of quantities and prices from both markets, caused by indirect network effects, leads to severe identification problems and demands data requirements. For this reason, there is an emerging debate on whether or not two-sided markets should be defined at all. Some authors therefore recommend abandoning market definition altogether, as it is considered useless and incoherent \citep{noel_analyzing_2005, kaplow_market_2014}. However, competition authorities typically do not have the choice to abandon market definition completely. They are either obliged by law to properly define relevant markets or have at least to identify the closest competitors to evaluate possible effects of anti-competitive behavior. Because of practical reasons, competition authorities often do not use quantitative methods but rather qualitative procedures to define two-sided markets.   
 
-The existence of indirect network effects characterizes two-sided or platform markets. Many two-sided businesses are intermediaries or platforms that sell two different products to two different groups of agents. Network effects interconnect these two groups as they mutually influence their demand. The platforms recognize the interconnection and choose the price structure according to the relative size of the indirect network effects. A very prominent example is the search engine market, where Google connects at least two market sides: the demand for a search query and the demand for placing an advertisement. Advertisers value a big group on the other market side as their scope, and therefore the effectiveness of advertisement grows. The value of the search query on the other market side might be influenced negatively or positively by the amount of advertisement. This indirect network effect depends on the quality of the advertisement and the consumers' demand for personalized advertisement. In a more restrictive definition of two-sided markets, \citet{rochet_platform_2003} determines those markets as two-sided if the price structure is non-neutral, i.e., the volume of transactions and the participation levels vary as the price structure varies, holding the price level constant. This definition stresses the importance of the distinction between the price level and price structure. The former is the sum of the prices charged by a platform on both sides, whereas the latter is the allocation of the price level among the two sides. Traditional antitrust instruments like the SSNIP test that are using the price level to analyze a market, cannot easily be applied in the case of two-sided platform competition (\citet{noel_analyzing_2005}, \citet{filistrucchi_market_2013}). The drawback of the SSNIP test becomes even more apparent, considering that the socially optimal price on one side of the platform may be zero under such market dynamics. While predatory pricing is an illegal practice in the case of traditional industries, selling a product below marginal cost can be a regular and profit-maximizing strategy in a two-sided market platform. 
+The existence of indirect network effects characterizes two-sided or platform markets. Many two-sided businesses are intermediaries or platforms that sell two different products to two different groups of agents. Network effects interconnect these two groups as they mutually influence their demand. The platforms recognize the interconnection and choose the price structure according to the relative size of the indirect network effects. A very prominent example is the search engine market, where Google connects at least two market sides: the demand for a search query and the demand for placing an advertisement. Advertisers value a big group on the other market side as their scope, and therefore the effectiveness of advertisement grows. The value of the search query on the other market side might be influenced negatively or positively by the amount of advertisement. This indirect network effect depends on the quality of the advertisement and the consumers' demand for personalized advertisement. In a more restrictive definition of two-sided markets, \citet{rochet_platform_2003} determines those markets as two-sided if the price structure is non-neutral, i.e., the volume of transactions and the participation levels vary as the price structure varies, holding the price level constant. This definition stresses the importance of the distinction between the price level and price structure. The former is the sum of the prices charged by a platform on both sides, whereas the latter is the allocation of the price level among the two sides. Traditional antitrust instruments like the SSNIP test that are using the price level to analyze a market, cannot easily be applied in the case of two-sided platform competition (\citet{noel_analyzing_2005}, \citet{filistrucchi_market_2013}). The drawback of the SSNIP test becomes even more apparent, considering that the socially optimal price on one side of the platform may be zero under such market dynamics. While predatory pricing is an illegal practice in the case of traditional industries, selling a product below marginal cost can be a regular and pro-competitive strategy of a two-sided platform. 
 
 However, the two-sided market business model is not an invention of the digital era. Newspapers, TV, payment systems, and shopping centers all act as a platform connecting two or more market sides that depend on each other. Nevertheless, the European Commission did not consider this dynamic when, in 1997, its current Market Definition Notice was issued. Acknowledging this drawback with the rise of the digital platform economy, the Commission published a review of this Notice in July 2021:
 
@@ -350,27 +350,27 @@ Turning to the advertising market, figure \ref{fig_ccf_ads_fss} supports the ass
 \hline \\[-1.8ex]
 	news magazines(1) & sales & ad pages/copy \\
 	\hline
-	FOCUS \& Der Spiegel & -.124 & -.534 \\
-	FOCUS \& Stern & .068 & -.426 \\
-	Der Spiegel \& Stern & -.027 & -.377 \\
+	FOCUS \& Der Spiegel & -0.162 & -0.559 \\
+	FOCUS \& Stern & 0.112 & -0.452 \\
+	Der Spiegel \& Stern & -0.033 & -0.300 \\
 	\hline
 	news magazines(2) & & \\
 	\hline
-	FOCUS \& Der Spiegel & -.147 & -.553 \\
-	FOCUS \& Stern & -.012 & -.322 \\
-	Der Spiegel \& Stern & -.296 & -.379 \\
+	FOCUS \& Der Spiegel & -0.136 & -0.606 \\
+	FOCUS \& Stern & -0.011 & -0.341 \\
+	Der Spiegel \& Stern & -0.358 & -0.393 \\
 	\hline
 	program guides & & \  \\ 
 	\hline
-	TV-Spielfilm \& TV-Movie & -.078 & .059 \\
-	TV-Spielfilm \& TV-Today & -.735 & -.953 \\
-	TV-Movie \& TV-Today & -.071 & -.223 \\ 
+	TV-Spielfilm \& TV-Movie & -0.130 & 0.207 \\
+	TV-Spielfilm \& TV-Today & -0.702 & -0.954 \\
+	TV-Movie \& TV-Today & -0.013 & -0.439 \\ 
 	\hline
 	women's magazines &  & \  \\ 
 	\hline
-	Brigitte \& Für Sie & -.490 & -.366 \\ 
-	Brigitte \& Freundin & -.090 & -.414 \\ 
-	Für Sie \& Freundin & -.240 & -.530 \\ \hline
+	Brigitte \& Für Sie & -0.516 & -0.345 \\ 
+	Brigitte \& Freundin & -0.043 & -0.454 \\ 
+	Für Sie \& Freundin & -0.439 & -0.329 \\ \hline
 \end{tabular}
 	\end{table}
 
@@ -434,7 +434,7 @@ In order to test the validity of our method, we finally calculated cross-correla
 
 \section{Conclusions}
 
-Market definition in two-sided markets is a complex challenge, and until now, no method has been developed which is applicable and suitable as a practical antitrust tool. Usual methods developed for on-sided markets are no longer valid, and the interdependence of quantities and prices from both markets, caused by indirect network effects, leads to severe identification problems. For this reason, some authors recommend altogether abandoning the market definition as it is considered useless and incoherent \citep{noel_analyzing_2005, kaplow_market_2014}. However, competition authorities are either obliged to define markets or have at least to identify the closest competitors to evaluate the effects of possibly anti-competitive behavior.     
+Market definition in two-sided markets is a complex challenge, and until now, no method has been developed which is applicable and suitable as a practical antitrust tool. Usual methods developed for on-sided markets are no longer valid, and the interdependence of quantities and prices from both markets, caused by indirect network effects, leads to severe identification problems. Therefore, some authors recommend altogether abandoning the market definition as it is considered useless and incoherent \citep{noel_analyzing_2005, kaplow_market_2014}. However, competition authorities are either obliged to define markets or have at least to identify the closest competitors to evaluate the effects of possibly anti-competitive behavior.     
 
 For this reason, we developed a new method for identifying competitors in two-sided markets by using time series methods and simple correlation analysis. At first, time series on quantities from both markets are adjusted by time series models to prevent spurious regressions. We use quantities instead of prices as (i) substitutability is directly reflected in quantities but not necessarily in prices; (ii) indirect network effects are directly linked to quantities and (iii) two-sided markets, such as platform markets typically characterized by zero prices on either of the submarkets. Next, either cross-correlation functions or simple contemporary correlations are calculated to identify the substitutability of different products. The procedure is applied to the reader and advertising markets of different popular magazines genres. 
 
