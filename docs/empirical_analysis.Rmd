@@ -1134,51 +1134,23 @@ corrLong_women_ads %>%
 ggsave("../figs/ccf_ads_women.png", width = 8, height = 6)
 ```
 
-# 4. Combine all
-
-```{r combine dfs}
-corrLong_all <- rbind(corrLong_fss_sales1, corrLong_fss_sales2,
-            corrLong_fss_ads1, corrLong_fss_ads2,
-            corrLong_tv_sales, corrLong_tv_ads,
-            corrLong_women_ads, corrLong_women_sales)
-```
-
-```{r}
-df_wide <- df_combined %>% 
-  filter(lag == 0) %>% 
-  filter(Var1 != Var2) %>% 
-  distinct(ccf, .keep_all = TRUE) %>%  
-  mutate(magazine_pair = paste(Var1,"&", Var2)) %>% 
-  dplyr::select(magazine_pair, ccf, type, sample) %>% 
-  arrange(magazine_pair) %>% 
-  spread(type, ccf) %>% 
-  arrange(sample)
-```
-
 # TV & Women
-Todo: Take resid_women_sales & resid_tv_sales and calculate the cross correlation
 ```{r}
 women <- c("Brigitte", "freundin", "FÜR SIE")
 tv <- c("TV Movie", "TV Spielfilm", "TV Today")
-
-
-names(resid_tv_sales) <- tv
-names(resid_tv_ads) <- tv
-names(resid_women_sales) <- women
-names(resid_women_ads) <- women
 ```
 
-
-```{r tv_women_sales: Calculate CCF}
-#FIXME: check if correlation is calculated correctly
-
+## Sales
+```{r}
 temp_tv_sales <- resid_tv_sales %>% as.data.frame()
 names(temp_tv_sales) <- tv
 temp_women_sales <- resid_women_sales %>% as.data.frame()
 names(temp_women_sales) <- women
 
 corr_temp <- cbind(temp_tv_sales, temp_women_sales)
+```
 
+```{r tv_women_sales: Calculate CCF}
 # Create empty matrix
 corr <- expand.grid(names(corr_temp), names(corr_temp))
 
@@ -1257,4 +1229,127 @@ corrLong_tv_women_sales %>%
   theme(legend.position = "bottom")
 
 ggsave("../figs/ccf_sales_tv_women.png", width = 8, height = 6)
+```
+
+## Advertisting
+```{r}
+temp_tv_ads <- resid_tv_ads %>% as.data.frame()
+names(temp_tv_ads) <- tv
+temp_women_ads <- resid_women_ads %>% as.data.frame()
+names(temp_women_ads) <- women
+
+corr_temp <- cbind(temp_tv_ads, temp_women_ads)
+```
+
+```{r tv_women_ads: Calculate CCF}
+# Create empty matrix
+corr <- expand.grid(names(corr_temp), names(corr_temp))
+
+corr$`-3` <- NA
+corr$`-2` <- NA
+corr$`-1` <- NA
+corr$`0` <- NA
+corr$`1` <- NA
+corr$`2` <- NA
+corr$`3` <- NA
+  
+x <- 1
+  
+for (corr1Id in 1:ncol(corr_temp)) {
+    c1 = corr_temp[,corr1Id]
+
+    for(corr2Id in 1:ncol(corr_temp)) {
+      c2 = corr_temp[,corr2Id]
+      correlation = ccf(c1, c2, lag.max = 3, 
+                        na.action = na.contiguous,
+                        plot=F)
+      
+      corr[x,3:9] <- correlation$acf %>% 
+        as.data.frame() %>% t()
+    
+      x<- x+1
+    }
+}
+```
+
+```{r tv_women_ads: CCF long df}
+# convert dataframe to long format
+corrLong_tv_women_ads <- corr %>%
+    gather(lag, ccf, `-3`:`3`) %>% 
+  mutate(lag = as.numeric(lag),
+         sample1 = case_when(
+           Var1 %in% tv ~ "tv guide",
+           Var1 %in% women ~ "women magazine",
+           TRUE ~ "other"
+         ),
+         sample2 = case_when(
+           Var2 %in% tv ~ "tv guide",
+           Var2 %in% women ~ "women magazine",
+           TRUE ~ "other"
+         ))
+```
+
+```{r tv_women_ads: Plot CCF}
+# Calculate confidence intervals
+ci_upper <- 2/sqrt(length(resid_tv_sales[,1]))
+ci_lower <- -2/sqrt(length(resid_tv_sales[,1]))
+
+corrLong_tv_women_ads %>%
+  filter(Var1!=Var2) %>%
+  filter(sample1!=sample2) %>%
+  ggplot(aes(lag,ccf,
+             fill=Var1)) +
+  geom_col(position = "dodge",
+           #show.legend = F,
+           alpha=0.8) +
+  scale_fill_manual(values=col) +
+  facet_wrap(~Var2, ncol=3)+
+  scale_x_continuous(breaks = c(-3:3)) +
+  scale_y_continuous(
+    limits = c(-1,1),
+    breaks = seq(-1,1,0.2)) +
+  geom_hline(yintercept = ci_upper, 
+             color = "black",
+             size = 0.3,
+             linetype = 2)+
+  geom_hline(yintercept = ci_lower, 
+             color = "black",
+             size=0.3,
+             linetype = 2)+
+  labs(x="", fill="", caption = paste("Timespan:", min,"to", max)) +
+  theme(legend.position = "bottom")
+
+ggsave("../figs/ccf_ads_tv_women.png", width = 8, height = 6)
+```
+
+# 4. Combine all
+
+```{r combine dfs}
+corrLong_tv_women_sales <- corrLong_tv_women_sales %>% 
+  mutate(sample = paste(sample1,"-",sample2),
+         type = "sales") %>% 
+  dplyr::select(-c(sample1,sample2))
+
+corrLong_tv_women_ads <- corrLong_tv_women_ads %>% 
+  mutate(sample = paste(sample1,"-",sample2),
+         type = "ads") %>% 
+  dplyr::select(-c(sample1,sample2))
+
+corrLong_all <- rbind(corrLong_fss_sales1, corrLong_fss_sales2,
+            corrLong_fss_ads1, corrLong_fss_ads2,
+            corrLong_tv_sales, corrLong_tv_ads,
+            corrLong_women_ads, corrLong_women_sales,
+            corrLong_tv_women_sales, corrLong_tv_women_ads)
+```
+
+```{r}
+df_wide <- corrLong_all %>% 
+  filter(lag == 0) %>% 
+  filter(Var1 != Var2) %>% 
+  distinct(ccf, .keep_all = TRUE) %>%  
+  mutate(magazine_pair = paste(Var1,"&", Var2)) %>% 
+  dplyr::select(magazine_pair, ccf, type, sample) %>% 
+  arrange(magazine_pair) %>% 
+  spread(type, ccf) %>% 
+  arrange(sample)
 ```
